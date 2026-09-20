@@ -1,4 +1,4 @@
-const CACHE = 'cmt-neo-v1';
+const CACHE = 'cmt-neo-v2';
 const ASSETS = [
     './',
     './index.html',
@@ -36,8 +36,10 @@ self.addEventListener('fetch', (e) => {
             }
             return fetch(e.request)
                 .then((res) => {
-                    const copy = res.clone();
-                    caches.open(CACHE).then((c) => c.put(e.request, copy));
+                    if (res && (res.status === 200 || res.type === 'opaque')) {
+                        const copy = res.clone();
+                        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+                    }
                     return res;
                 })
                 .catch(() => caches.match('./index.html'));
