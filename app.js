@@ -1,5 +1,5 @@
 const STORE_KEY = 'cmt.neo.periods.v1';
-const SETTINGS_KEY = 'cmt.neo.settings.v1';
+const MENSTRUAL_DAYS = 5;
 
 const PALETTES = {
     menstrual: { name: 'Menstrual', bg: '#150710', bg2: '#2a0c1c', a: '#ff5c7a', b: '#ff9e8f', glow: 'rgba(255,92,122,0.42)' },
@@ -12,7 +12,6 @@ const PALETTES = {
 
 const state = {
     periods: [],
-    menstrualLen: 5,
     stats: null,
     editingDate: null
 };
@@ -26,16 +25,6 @@ function getPeriods() {
 function savePeriods(periods) {
     const sorted = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
     localStorage.setItem(STORE_KEY, JSON.stringify(sorted));
-    load();
-}
-
-function getSettings() {
-    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || { menstrualLen: 5 }; } catch { return { menstrualLen: 5 }; }
-}
-
-function saveSettings(settings) {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    state.menstrualLen = settings.menstrualLen;
     load();
 }
 
@@ -218,9 +207,9 @@ function computeStats(periods) {
     };
 }
 
-function phaseOfDay(stats, menstrualLen) {
+function phaseOfDay(stats) {
     if (stats.currentDay < stats.peakStart) {
-        return stats.currentDay <= menstrualLen ? 'menstrual' : 'follicular';
+        return stats.currentDay <= MENSTRUAL_DAYS ? 'menstrual' : 'follicular';
     }
     if (stats.currentDay <= stats.peakEnd) return 'fertile';
     return 'luteal';
@@ -230,7 +219,7 @@ function phasePalette(key) {
     return PALETTES[key] || PALETTES.empty;
 }
 
-function heroStatus(stats, menstrualLen) {
+function heroStatus(stats) {
     if (stats && stats.mostRecentPaused) {
         return { badge: 'paused', big: '--', label: 'tracking paused', tiny: '' };
     }
@@ -247,7 +236,7 @@ function heroStatus(stats, menstrualLen) {
 
     if (d < stats.peakStart) {
         const n = stats.peakStart - d;
-        return { badge: phaseOfDay(stats, menstrualLen), big: String(n), label: n === 1 ? 'day to fertile' : 'days to fertile', tiny: '' };
+        return { badge: phaseOfDay(stats), big: String(n), label: n === 1 ? 'day to fertile' : 'days to fertile', tiny: '' };
     }
     if (d <= stats.peakEnd) {
         const left = stats.peakEnd - d + 1;
@@ -307,14 +296,6 @@ function renderMenu() {
             '</div>'
         )).join('');
     }
-    renderSettings();
-}
-
-function renderSettings() {
-    const opts = [3, 4, 5, 6, 7];
-    $('#menstrualSeg').innerHTML = opts.map((n) =>
-        '<button class="' + (n === state.menstrualLen ? 'active' : '') + '" data-mlen="' + n + '">' + n + '</button>'
-    ).join('');
 }
 
 function pauseIcon() {
@@ -335,18 +316,16 @@ function trashIcon() {
 
 function load() {
     state.periods = getPeriods();
-    state.settings = getSettings();
-    state.menstrualLen = state.settings.menstrualLen || 5;
     state.stats = computeStats(state.periods);
 
     const model = { total: state.stats ? state.stats.median : null, phaseKey: 'empty' };
     if (state.stats && state.stats.currentDay !== null) {
-        model.phaseKey = phaseOfDay(state.stats, state.menstrualLen);
+        model.phaseKey = phaseOfDay(state.stats);
     } else if (state.stats && state.stats.mostRecentPaused) {
         model.phaseKey = 'paused';
     }
 
-    renderHero(heroStatus(state.stats, state.menstrualLen), model, state.stats);
+    renderHero(heroStatus(state.stats), model, state.stats);
     renderMenu();
 
     const dateInput = $('#logDate');
@@ -491,6 +470,7 @@ function toast(msg) {
 }
 
 function openSheet(id) {
+    closeSheets();
     document.getElementById(id).classList.add('open');
 }
 
@@ -548,13 +528,6 @@ function init() {
             closeSheets();
             toast('erased');
         }
-    });
-
-    $('#menstrualSeg').addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        saveSettings({ menstrualLen: Number(btn.dataset.mlen) });
-        renderSettings();
     });
 
     $('#historyList').addEventListener('click', (e) => {

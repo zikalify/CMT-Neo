@@ -20,8 +20,14 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
+html {
     height: 100%;
+    background-color: #0b0714;
+}
+
+html, body {
+    overflow: hidden;
+    overscroll-behavior: none;
 }
 
 body {
@@ -29,8 +35,7 @@ body {
     background-color: var(--bg);
     background-image: linear-gradient(165deg, var(--bg2) 0%, var(--bg) 55%);
     color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100%;
     transition: background-color 1s ease;
 }
 
@@ -65,7 +70,8 @@ button {
     padding: max(22px, env(safe-area-inset-top)) 22px calc(120px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
 }
 
 .bar {
@@ -105,6 +111,7 @@ button {
 /* ---------- Center countdown ---------- */
 .center {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -125,7 +132,7 @@ button {
 
 .big {
     font-family: var(--font-display);
-    font-size: clamp(6rem, 34vw, 9rem);
+    font-size: clamp(4rem, min(34vw, 28vh), 9rem);
     font-weight: 700;
     line-height: 1;
     margin-top: 20px;
@@ -214,6 +221,7 @@ button {
 
 .panel-scroll {
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .sheet.open {
@@ -434,29 +442,6 @@ input[type="date"]:focus {
 .mini-btn.danger:hover {
     color: #ff6b81;
     background: rgba(255, 80, 100, 0.14);
-}
-
-.seg {
-    display: flex;
-    gap: 6px;
-}
-
-.seg button {
-    flex: 1;
-    padding: 10px;
-    border-radius: 12px;
-    font-size: 0.88rem;
-    font-weight: 600;
-    background: var(--card);
-    border: 1px solid var(--line);
-    color: var(--muted);
-    transition: all 0.2s ease;
-}
-
-.seg button.active {
-    color: #0b0609;
-    border-color: transparent;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
 }
 
 /* ---------- Toast ---------- */
