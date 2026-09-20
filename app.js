@@ -1,10 +1,8 @@
 const STORE_KEY = 'cmt.neo.periods.v1';
-const MENSTRUAL_DAYS = 5;
 
 const PALETTES = {
-    menstrual: { name: 'Menstrual', bg: '#150710', bg2: '#2a0c1c', a: '#ff5c7a', b: '#ff9e8f', glow: 'rgba(255,92,122,0.42)' },
     follicular: { name: 'Follicular', bg: '#120b06', bg2: '#2a1608', a: '#ff9f43', b: '#ffd166', glow: 'rgba(255,159,67,0.4)' },
-    fertile: { name: 'Peak phase', bg: '#160819', bg2: '#340f40', a: '#ff3fa4', b: '#a855f7', glow: 'rgba(255,63,164,0.45)' },
+    fertile: { name: 'Ovulation', bg: '#160819', bg2: '#340f40', a: '#ff3fa4', b: '#a855f7', glow: 'rgba(255,63,164,0.45)' },
     luteal: { name: 'Luteal', bg: '#07101a', bg2: '#0d2a48', a: '#38c6ff', b: '#7c6bff', glow: 'rgba(56,198,255,0.38)' },
     paused: { name: 'Paused', bg: '#0e0e12', bg2: '#23232c', a: '#9c9cb0', b: '#65657a', glow: 'rgba(156,156,176,0.3)' },
     empty: { name: 'Getting started', bg: '#0c0814', bg2: '#1d1030', a: '#b78dff', b: '#ff7ac2', glow: 'rgba(183,141,255,0.42)' }
@@ -209,7 +207,7 @@ function computeStats(periods) {
 
 function phaseOfDay(stats) {
     if (stats.currentDay < stats.peakStart) {
-        return stats.currentDay <= MENSTRUAL_DAYS ? 'menstrual' : 'follicular';
+        return 'follicular';
     }
     if (stats.currentDay <= stats.peakEnd) return 'fertile';
     return 'luteal';
@@ -236,11 +234,11 @@ function heroStatus(stats) {
 
     if (d < stats.peakStart) {
         const n = stats.peakStart - d;
-        return { badge: phaseOfDay(stats), big: String(n), label: n === 1 ? 'day to fertile' : 'days to fertile', tiny: '' };
+        return { badge: phaseOfDay(stats), big: String(n), label: n === 1 ? 'day to fertile' : 'days to fertile', tiny: 'not fertile' };
     }
     if (d <= stats.peakEnd) {
         const left = stats.peakEnd - d + 1;
-        return { badge: 'peak', big: String(left), label: left === 1 ? 'fertile day left' : 'fertile days left', tiny: '' };
+        return { badge: 'ovulation', big: String(left), label: left === 1 ? 'fertile day left' : 'fertile days left', tiny: '' };
     }
     if (untilPeriod < 0) {
         return { badge: 'luteal', big: '!', label: 'overdue', tiny: testMsg };
@@ -249,7 +247,7 @@ function heroStatus(stats) {
         badge: 'luteal',
         big: String(untilPeriod),
         label: untilPeriod === 1 ? 'day to period' : 'days to period',
-        tiny: testMsg
+        tiny: 'not fertile · ' + testMsg
     };
 }
 

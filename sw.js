@@ -1,4 +1,4 @@
-const CACHE = 'cmt-neo-v2';
+const CACHE = 'cmt-neo-v4';
 const ASSETS = [
     './',
     './index.html',
