@@ -91,7 +91,57 @@ function mix(hexA, hexB, t) {
 
 function computeStats(periods) {
     const valid = periods.filter((p) => !p.paused).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
-    if (valid.length < 2) return null;
+
+    const allDesc = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
+    const mostRecent = allDesc[0];
+    if (!mostRecent) return null;
+
+    if (valid.length === 1) {
+        const ref = valid[0];
+        const median = 28;
+        const peakStart = 10;
+        const peakEnd = 17;
+        let currentDay = null;
+        if (!mostRecent.paused) {
+            currentDay = diffDays(ref.date, todayISO()) + 1;
+        }
+        const nextPeriod = addDays(parseLocalDate(ref.date), median);
+        const testDate = addDays(parseLocalDate(ref.date), peakEnd + 14 - 1);
+        return {
+            totalCycles: 1,
+            shortest: median,
+            longest: median,
+            median,
+            stability: 'Regular',
+            peakStart,
+            peakEnd,
+            currentDay,
+            mostRecentPaused: mostRecent.paused,
+            lastDateISO: ref.date,
+            nextPeriodISO: toLocalISO(nextPeriod),
+            testDateISO: toLocalISO(testDate)
+        };
+    }
+
+    if (valid.length < 2) {
+        if (mostRecent.paused) {
+            return {
+                totalCycles: valid.length,
+                shortest: 28,
+                longest: 28,
+                median: 28,
+                stability: 'Regular',
+                peakStart: 10,
+                peakEnd: 17,
+                currentDay: null,
+                mostRecentPaused: true,
+                lastDateISO: mostRecent.date,
+                nextPeriodISO: mostRecent.date,
+                testDateISO: mostRecent.date
+            };
+        }
+        return null;
+    }
 
     const all = periods.slice().sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
     const cycleLengths = [];
@@ -143,9 +193,6 @@ function computeStats(periods) {
     const fertileEnd = Math.max(1, longest - 11);
     const peakStart = Math.max(fertileStart, Math.round((median - 18) - 1.5 * mad));
     const peakEnd = Math.min(fertileEnd, Math.round((median - 11) + 0.3 * mad));
-
-    const allDesc = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
-    const mostRecent = allDesc[0];
 
     let currentDay = null;
     if (!mostRecent.paused) {

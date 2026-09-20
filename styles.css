@@ -192,7 +192,7 @@ button {
     backdrop-filter: blur(4px);
     opacity: 0;
     transition: opacity 0.3s ease;
-    pointer-events: auto;
+    pointer-events: none;
 }
 
 .sheet-panel {
@@ -222,6 +222,7 @@ button {
 
 .sheet.open .sheet-backdrop {
     opacity: 1;
+    pointer-events: auto;
 }
 
 .sheet.open .sheet-panel {
