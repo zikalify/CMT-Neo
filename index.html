@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0c0814">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="CMT-Neo — a minimal cycle tracker">
+    <title>CMT-Neo</title>
+
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./icon-192x192.png" type="image/png">
+    <link rel="apple-touch-icon" href="./icon-192x192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+    <div class="blob"></div>
+
+    <main class="app">
+        <header class="bar">
+            <span class="brand">CMT-Neo</span>
+            <button class="icon-btn" id="menuBtn" aria-label="Periods">
+                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg>
+            </button>
+        </header>
+
+        <section class="center">
+            <span class="phase" id="phaseBadge"></span>
+            <div class="big" id="heroBig">–</div>
+            <div class="label" id="heroLabel">log a period</div>
+            <p class="tiny" id="heroTiny"></p>
+        </section>
+    </main>
+
+    <button class="fab" id="fab" aria-label="Log period">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+
+    <div class="sheet" id="logSheet">
+        <div class="sheet-backdrop" data-close></div>
+        <div class="sheet-panel">
+            <div class="sheet-grip"></div>
+            <h3 id="logSheetTitle">period</h3>
+            <p class="sheet-sub" id="logSheetSub">first day</p>
+            <div class="chips" id="quickChips">
+                <button class="chip" data-offset="0">today</button>
+                <button class="chip" data-offset="1">yesterday</button>
+                <button class="chip" data-offset="2">+2</button>
+            </div>
+            <input type="date" id="logDate" max="">
+            <button class="btn-primary" id="confirmLog">save</button>
+            <button class="btn-ghost" data-close>close</button>
+        </div>
+    </div>
+
+    <div class="sheet" id="menuSheet">
+        <div class="sheet-backdrop" data-close></div>
+        <div class="sheet-panel panel-scroll">
+            <div class="sheet-grip"></div>
+            <div class="sheet-head">
+                <h3>periods</h3>
+                <div class="sheet-actions">
+                    <button class="icon-btn" id="menuExport" aria-label="Export">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    </button>
+                    <button class="icon-btn" id="menuImport" aria-label="Import">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 8l5-5 5 5M12 3v12"/></svg>
+                    </button>
+                    <input type="file" id="importFile" accept=".csv,.txt,text/csv,text/plain" hidden>
+                </div>
+            </div>
+            <div id="historyList" class="history-list"><p class="empty-state">nothing yet</p></div>
+            <div class="divider"></div>
+            <div class="row-label">period length</div>
+            <div class="seg" id="menstrualSeg"></div>
+            <div class="row-label">clear</div>
+            <button class="btn-danger" id="clearAllBtn">erase all</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script src="./app.js"></script>
+</body>
+</html>
