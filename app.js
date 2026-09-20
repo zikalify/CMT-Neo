@@ -234,7 +234,7 @@ function heroStatus(stats) {
 
     if (d < stats.peakStart) {
         const n = stats.peakStart - d;
-        return { badge: phaseOfDay(stats), big: String(n), label: n === 1 ? 'day to fertile' : 'days to fertile', tiny: 'not fertile' };
+        return { badge: phaseOfDay(stats), big: String(n), label: n === 1 ? 'day to fertile' : 'days to fertile', tiny: '' };
     }
     if (d <= stats.peakEnd) {
         const left = stats.peakEnd - d + 1;
