@@ -31,56 +31,6 @@
         --fab-text: #1a1620;
         --fab-shadow: rgba(0, 0, 0, 0.25);
     }
-
-    .sheet-backdrop {
-        background: rgba(0, 0, 0, 0.35);
-    }
-
-    .sheet-panel {
-        background: var(--bg);
-    }
-
-    .sheet-grip {
-        background: rgba(0, 0, 0, 0.18);
-    }
-
-    .icon-btn {
-        background: var(--card-strong);
-        border-color: var(--line);
-        color: var(--muted);
-    }
-
-    .icon-btn:active {
-        color: var(--text);
-    }
-
-    .chip.active {
-        color: #f8f5fc;
-    }
-
-    .btn-primary {
-        color: #f8f5fc;
-    }
-
-    .btn-danger {
-        color: #db2777;
-        background: rgba(219, 39, 119, 0.1);
-        border-color: rgba(219, 39, 119, 0.3);
-    }
-
-    .mini-btn.danger:hover {
-        color: #db2777;
-        background: rgba(219, 39, 119, 0.14);
-    }
-
-    input[type="date"] {
-        color-scheme: light dark;
-    }
-
-    .toast {
-        background: rgba(248, 245, 252, 0.94);
-        border-color: var(--line);
-    }
 }
 
 * {
@@ -550,4 +500,48 @@ input[type="date"]:focus {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+/* ---------- Light mode component overrides ----------
+   Placed last so they beat the base rules above (equal specificity,
+   later in source order). */
+@media (prefers-color-scheme: light) {
+    .sheet-backdrop {
+        background: rgba(0, 0, 0, 0.35);
+    }
+
+    .sheet-panel {
+        background: var(--bg);
+    }
+
+    .sheet-grip {
+        background: rgba(0, 0, 0, 0.18);
+    }
+
+    .chip.active {
+        color: #f8f5fc;
+    }
+
+    .btn-primary {
+        color: #f8f5fc;
+    }
+
+    .btn-danger {
+        color: #db2777;
+        background: rgba(219, 39, 119, 0.1);
+        border-color: rgba(219, 39, 119, 0.3);
+    }
+
+    .mini-btn.danger:hover {
+        color: #db2777;
+        background: rgba(219, 39, 119, 0.14);
+    }
+
+    input[type="date"] {
+        color-scheme: light dark;
+    }
+
+    .toast {
+        background: rgba(248, 245, 252, 0.94);
+        border-color: var(--line);
+    }
 }
