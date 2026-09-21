@@ -190,6 +190,8 @@ button {
     align-items: flex-end;
     justify-content: center;
     pointer-events: none;
+    visibility: hidden;
+    transition: visibility 0s linear 0.45s;
 }
 
 .sheet-backdrop {
@@ -214,7 +216,7 @@ button {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    transform: translateY(100%);
+    transform: translateY(calc(100% + 16px));
     transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
     max-height: 84vh;
 }
@@ -226,6 +228,8 @@ button {
 
 .sheet.open {
     pointer-events: auto;
+    visibility: visible;
+    transition: none;
 }
 
 .sheet.open .sheet-backdrop {
