@@ -10,6 +10,8 @@
     --line: rgba(255, 255, 255, 0.09);
     --card: rgba(255, 255, 255, 0.05);
     --card-strong: rgba(255, 255, 255, 0.09);
+    --fab-text: #0b0609;
+    --fab-shadow: rgba(0, 0, 0, 0.45);
     --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 }
@@ -26,6 +28,58 @@
         --line: rgba(0, 0, 0, 0.09);
         --card: rgba(0, 0, 0, 0.04);
         --card-strong: rgba(0, 0, 0, 0.08);
+        --fab-text: #1a1620;
+        --fab-shadow: rgba(0, 0, 0, 0.25);
+    }
+
+    .sheet-backdrop {
+        background: rgba(0, 0, 0, 0.35);
+    }
+
+    .sheet-panel {
+        background: var(--bg);
+    }
+
+    .sheet-grip {
+        background: rgba(0, 0, 0, 0.18);
+    }
+
+    .icon-btn {
+        background: var(--card-strong);
+        border-color: var(--line);
+        color: var(--muted);
+    }
+
+    .icon-btn:active {
+        color: var(--text);
+    }
+
+    .chip.active {
+        color: #f8f5fc;
+    }
+
+    .btn-primary {
+        color: #f8f5fc;
+    }
+
+    .btn-danger {
+        color: #db2777;
+        background: rgba(219, 39, 119, 0.1);
+        border-color: rgba(219, 39, 119, 0.3);
+    }
+
+    .mini-btn.danger:hover {
+        color: #db2777;
+        background: rgba(219, 39, 119, 0.14);
+    }
+
+    input[type="date"] {
+        color-scheme: light dark;
+    }
+
+    .toast {
+        background: rgba(248, 245, 252, 0.94);
+        border-color: var(--line);
     }
 }
 
@@ -197,8 +251,8 @@ button {
     height: 58px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #0b0609;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), 0 0 22px var(--glow);
+    color: var(--fab-text);
+    box-shadow: 0 14px 36px var(--fab-shadow), 0 0 22px var(--glow);
     transition: background 0.6s ease, transform 0.12s ease;
     z-index: 40;
 }
@@ -337,7 +391,6 @@ input[type="date"] {
     color: var(--text);
     font-family: var(--font-body);
     font-size: 1rem;
-    color-scheme: dark;
 }
 
 input[type="date"]:focus {
@@ -496,4 +549,5 @@ input[type="date"]:focus {
 .toast.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+}
 }
