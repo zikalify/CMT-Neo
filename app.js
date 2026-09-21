@@ -256,14 +256,28 @@ function applyTheme(palette, progress) {
     const accent2 = mix(palette.b, palette.a, Math.min(1, progress * 0.5 + 0.5));
 
     const root = document.documentElement.style;
-    root.setProperty('--bg', palette.bg);
-    root.setProperty('--bg2', palette.bg2);
     root.setProperty('--accent', accent);
     root.setProperty('--accent2', accent2);
     root.setProperty('--glow', palette.glow);
 
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', palette.bg2);
+    if (meta) {
+        const computedBg2 = getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim();
+        meta.setAttribute('content', computedBg2 || palette.bg2);
+    }
+}
+
+function syncThemeColor() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+        const computedBg2 = getComputedStyle(document.documentElement).getPropertyValue('--bg2').trim();
+        meta.setAttribute('content', computedBg2);
+    }
+}
+
+if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    mq.addEventListener?.('change', syncThemeColor);
 }
 
 function renderHero(status, model, stats) {
