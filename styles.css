@@ -49,7 +49,6 @@ body::after {
     height: 120px;
     background: var(--bg);
     pointer-events: none;
-    z-index: -1;
 }
 
 button {
@@ -228,7 +227,7 @@ button {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    transform: translateY(calc(100% + 16px));
+    transform: translateY(calc(100% + 32px));
     transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
     max-height: 84vh;
 }
