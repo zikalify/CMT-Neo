@@ -419,9 +419,9 @@ function exportCSV() {
         toast('nothing to export');
         return;
     }
-    let csv = 'Date,Paused\n';
+    let csv = 'Date,Paused,Pregnant\n';
     state.periods.slice().sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date)).forEach((p) => {
-        csv += p.date + ',' + (p.paused ? 'Yes' : 'No') + '\n';
+        csv += p.date + ',' + (p.paused ? 'Yes' : 'No') + ',' + (p.pregnant ? 'Yes' : 'No') + '\n';
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -448,6 +448,7 @@ function importCSV(file) {
             }
             const di = headers.indexOf('date');
             const pi = headers.indexOf('paused');
+            const gi = headers.indexOf('pregnant');
             const imported = [];
             const errors = [];
 
@@ -460,7 +461,11 @@ function importCSV(file) {
                     errors.push(i + 1);
                     continue;
                 }
-                imported.push({ date, paused: false, pregnant: false });
+                const gval = gi >= 0 ? (vals[gi] || '').trim().toLowerCase() : '';
+                const pval = (vals[pi] || '').trim().toLowerCase();
+                const isYes = (v) => v === 'yes' || v === 'true' || v === '1';
+                const pregnant = isYes(gval) || isYes(pval);
+                imported.push({ date, paused: false, pregnant });
             }
 
             if (!imported.length) {
