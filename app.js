@@ -115,6 +115,23 @@ function computeStats(periods) {
     }
 
     if (valid.length < 2) {
+        if (pregSinceISO) {
+            return {
+                totalCycles: valid.length,
+                shortest: 28,
+                longest: 28,
+                median: 28,
+                stability: 'Regular',
+                peakStart: 10,
+                peakEnd: 17,
+                currentDay: null,
+                mostRecentPaused: false,
+                pregSinceISO,
+                lastDateISO: mostRecent.date,
+                nextPeriodISO: mostRecent.date,
+                testDateISO: mostRecent.date
+            };
+        }
         if (mostRecent.paused) {
             return {
                 totalCycles: valid.length,
@@ -315,7 +332,7 @@ function renderMenu() {
         list.innerHTML = sorted.map((p) => (
             '<div class="hist-item">' +
                 '<div class="hist-date">' + fmtShort(p.date) + '<small>' + parseLocalDate(p.date).getFullYear() + '</small></div>' +
-                '<button class="hist-chip' + (p.pregnant ? ' on' : '') + '" data-preg="' + p.date + '">' + (p.pregnant ? 'pregnant' : 'got pregnant') + '</button>' +
+                '<button class="hist-chip' + (p.pregnant ? ' on' : '') + '" data-preg="' + p.date + '">got pregnant</button>' +
                 '<button class="mini-btn" data-edit="' + p.date + '" aria-label="edit">' + editIcon() + '</button>' +
                 '<button class="mini-btn danger" data-delete="' + p.date + '" aria-label="delete">' + trashIcon() + '</button>' +
             '</div>'
