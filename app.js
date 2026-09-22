@@ -516,13 +516,105 @@ function toast(msg) {
     el._t = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
-function openSheet(id) {
-    closeSheets();
-    document.getElementById(id).classList.add('open');
+let sheetPushed = false;
+
+function clearSheetInline() {
+    document.querySelectorAll('.sheet-panel').forEach((p) => { p.style.transform = ''; p.style.transition = ''; });
 }
 
-function closeSheets() {
+function openSheet(id) {
+    const alreadyOpen = !!document.querySelector('.sheet.open');
+    closeSheets(true);
+    document.getElementById(id).classList.add('open');
+    if (!alreadyOpen && !sheetPushed) {
+        try {
+            history.pushState({ cmtNeoSheet: true }, '');
+            sheetPushed = true;
+        } catch (e) {}
+    }
+}
+
+function closeSheets(silent) {
+    const wasOpen = !!document.querySelector('.sheet.open');
+    clearSheetInline();
     document.querySelectorAll('.sheet').forEach((s) => s.classList.remove('open'));
+    if (wasOpen && sheetPushed && !silent) {
+        sheetPushed = false;
+        try { history.back(); } catch (e) {}
+    }
+}
+
+window.addEventListener('popstate', () => {
+    sheetPushed = false;
+    clearSheetInline();
+    document.querySelectorAll('.sheet').forEach((s) => s.classList.remove('open'));
+});
+
+let confirmAction = null;
+
+function askConfirm(title, sub, yesLabel, action) {
+    $('#confirmTitle').textContent = title;
+    $('#confirmSub').textContent = sub || '';
+    $('#confirmSub').style.display = sub ? '' : 'none';
+    $('#confirmYes').textContent = yesLabel;
+    confirmAction = action;
+    openSheet('confirmSheet');
+}
+
+function bindSheetSwipe() {
+    document.querySelectorAll('.sheet-panel').forEach((panel) => {
+        let startY = null;
+        let dy = 0;
+        const snapBack = () => {
+            startY = null;
+            if (dy <= 0) {
+                dy = 0;
+                panel.style.transition = '';
+                panel.style.transform = '';
+                return;
+            }
+            dy = 0;
+            panel.style.transition = '';
+            panel.style.transform = 'translateY(0)';
+            panel.addEventListener('transitionend', function te() {
+                panel.style.transform = '';
+                panel.removeEventListener('transitionend', te);
+            });
+        };
+        panel.addEventListener('touchstart', (e) => {
+            if (!panel.closest('.sheet').classList.contains('open')) return;
+            if (!e.touches.length) return;
+            startY = e.touches[0].clientY;
+            dy = 0;
+            panel.style.transition = 'none';
+        }, { passive: true });
+        panel.addEventListener('touchmove', (e) => {
+            if (startY === null || !e.touches.length) return;
+            if (panel.scrollHeight > panel.clientHeight + 1 && panel.scrollTop > 0) {
+                startY = null;
+                panel.style.transition = '';
+                return;
+            }
+            dy = Math.max(0, e.touches[0].clientY - startY);
+            panel.style.transform = 'translateY(' + dy + 'px)';
+        }, { passive: true });
+        panel.addEventListener('touchend', () => {
+            if (startY === null) return;
+            if (dy > 110) {
+                startY = null;
+                dy = 0;
+                panel.style.transition = '';
+                panel.style.transform = '';
+                closeSheets();
+            } else {
+                snapBack();
+            }
+        });
+        panel.addEventListener('touchcancel', () => {
+            if (startY === null) return;
+            snapBack();
+        });
+    });
 }
 
 function openLogSheet(prefill) {
@@ -568,13 +660,19 @@ function init() {
         e.target.value = '';
     });
 
+    $('#confirmYes').addEventListener('click', () => {
+        const fn = confirmAction;
+        confirmAction = null;
+        closeSheets();
+        if (fn) fn();
+    });
+
     $('#clearAllBtn').addEventListener('click', () => {
-        if (confirm('erase all data?')) {
+        askConfirm('erase everything?', 'this deletes all logged periods', 'erase all', () => {
             localStorage.removeItem(STORE_KEY);
             load();
-            closeSheets();
             toast('erased');
-        }
+        });
     });
 
     $('#historyList').addEventListener('click', (e) => {
@@ -598,6 +696,7 @@ function init() {
         if (e.key === 'Escape') closeSheets();
     });
 
+    bindSheetSwipe();
     load();
 }
 
