@@ -4,13 +4,17 @@ const PALETTES = {
     follicular: { name: 'Follicular', bg: '#120b06', bg2: '#2a1608', a: '#ff9f43', b: '#ffd166', glow: 'rgba(255,159,67,0.4)' },
     fertile: { name: 'Ovulation', bg: '#160819', bg2: '#340f40', a: '#ff3fa4', b: '#a855f7', glow: 'rgba(255,63,164,0.45)' },
     luteal: { name: 'Luteal', bg: '#07101a', bg2: '#0d2a48', a: '#38c6ff', b: '#7c6bff', glow: 'rgba(56,198,255,0.38)' },
-    paused: { name: 'Paused', bg: '#0e0e12', bg2: '#23232c', a: '#9c9cb0', b: '#65657a', glow: 'rgba(156,156,176,0.3)' },
+    pregnant: { name: 'Pregnant', bg: '#0a140f', bg2: '#0e2f22', a: '#4ade80', b: '#22d3ee', glow: 'rgba(74,222,128,0.4)' },
     empty: { name: 'Getting started', bg: '#0c0814', bg2: '#1d1030', a: '#b78dff', b: '#ff7ac2', glow: 'rgba(183,141,255,0.42)' }
 };
+
+const GESTATION_DAYS = 280;
+const PREG_KEY = 'cmt.neo.pregnancy.v1';
 
 const state = {
     periods: [],
     stats: null,
+    pregnancy: null,
     editingDate: null
 };
 
@@ -24,6 +28,27 @@ function savePeriods(periods) {
     const sorted = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
     localStorage.setItem(STORE_KEY, JSON.stringify(sorted));
     load();
+}
+
+function getPregnancy() {
+    try { return JSON.parse(localStorage.getItem(PREG_KEY)); } catch { return null; }
+}
+
+function savePregnancy(preg) {
+    if (preg) localStorage.setItem(PREG_KEY, JSON.stringify(preg));
+    else localStorage.removeItem(PREG_KEY);
+}
+
+const PREG_HIST_KEY = 'cmt.neo.pregnancy.history.v1';
+
+function getPregHistory() {
+    try { return JSON.parse(localStorage.getItem(PREG_HIST_KEY)) || []; } catch { return []; }
+}
+
+function addPregHistory(win) {
+    const h = getPregHistory();
+    h.push(win);
+    localStorage.setItem(PREG_HIST_KEY, JSON.stringify(h));
 }
 
 function parseLocalDate(str) {
@@ -76,7 +101,9 @@ function mix(hexA, hexB, t) {
     return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
-function computeStats(periods) {
+function computeStats(periods, pregWindows) {
+    const windows = pregWindows || [];
+    const crossesPregnancy = (aISO, bISO) => windows.some((w) => aISO < w.until && bISO > w.since);
     const valid = periods.filter((p) => !p.paused).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
     const allDesc = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
@@ -136,10 +163,10 @@ function computeStats(periods) {
 
     for (const p of all) {
         if (p.paused) {
-            if (lastValid) cycleLengths.push(diffDays(lastValid.date, p.date));
+            if (lastValid && !crossesPregnancy(lastValid.date, p.date)) cycleLengths.push(diffDays(lastValid.date, p.date));
             lastValid = null;
         } else {
-            if (lastValid) cycleLengths.push(diffDays(lastValid.date, p.date));
+            if (lastValid && !crossesPregnancy(lastValid.date, p.date)) cycleLengths.push(diffDays(lastValid.date, p.date));
             lastValid = p;
         }
     }
@@ -217,7 +244,15 @@ function phasePalette(key) {
     return PALETTES[key] || PALETTES.empty;
 }
 
-function heroStatus(stats) {
+function heroStatus(stats, preg) {
+    if (preg) {
+        const dueISO = toLocalISO(addDays(parseLocalDate(preg.since), GESTATION_DAYS));
+        const left = diffDays(todayISO(), dueISO);
+        if (left > 1) return { badge: 'pregnant', big: String(left), label: 'days to due date', tiny: '' };
+        if (left === 1) return { badge: 'pregnant', big: '1', label: 'day to due date', tiny: '' };
+        if (left === 0) return { badge: 'pregnant', big: '!', label: 'due today', tiny: '' };
+        return { badge: 'pregnant', big: '!', label: 'past due date', tiny: 'log period when back' };
+    }
     if (stats && stats.mostRecentPaused) {
         return { badge: 'paused', big: '--', label: 'tracking paused', tiny: '' };
     }
@@ -301,21 +336,14 @@ function renderMenu() {
         list.innerHTML = sorted.map((p) => (
             '<div class="hist-item">' +
                 '<div class="hist-date">' + fmtShort(p.date) + '<small>' + parseLocalDate(p.date).getFullYear() + '</small></div>' +
-                (p.paused ? '<span class="hist-chip held">held</span>' : '') +
-                '<button class="mini-btn" data-toggle-pause="' + p.date + '" aria-label="hold">' + (p.paused ? playIcon() : pauseIcon()) + '</button>' +
                 '<button class="mini-btn" data-edit="' + p.date + '" aria-label="edit">' + editIcon() + '</button>' +
                 '<button class="mini-btn danger" data-delete="' + p.date + '" aria-label="delete">' + trashIcon() + '</button>' +
             '</div>'
         )).join('');
     }
-}
 
-function pauseIcon() {
-    return '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>';
-}
-
-function playIcon() {
-    return '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.5a1 1 0 0 1 1.53-.85l10 6.5a1 1 0 0 1 0 1.7l-10 6.5A1 1 0 0 1 8 18.5z"/></svg>';
+    const pregBtn = $('#pregnancyBtn');
+    if (pregBtn) pregBtn.textContent = state.pregnancy ? 'end pregnancy' : 'got pregnant';
 }
 
 function editIcon() {
@@ -328,16 +356,27 @@ function trashIcon() {
 
 function load() {
     state.periods = getPeriods();
-    state.stats = computeStats(state.periods);
+    if (state.periods.some((p) => p.paused)) {
+        state.periods = state.periods.map((p) => ({ date: p.date, paused: false }));
+        localStorage.setItem(STORE_KEY, JSON.stringify(state.periods));
+    }
+    state.pregnancy = getPregnancy();
+    state.stats = computeStats(state.periods, getPregHistory());
 
     const model = { total: state.stats ? state.stats.median : null, phaseKey: 'empty' };
-    if (state.stats && state.stats.currentDay !== null) {
+    let statsForHero = state.stats;
+    if (state.pregnancy) {
+        model.phaseKey = 'pregnant';
+        model.total = GESTATION_DAYS;
+        const elapsed = Math.max(0, diffDays(state.pregnancy.since, todayISO()));
+        statsForHero = { currentDay: Math.min(elapsed, GESTATION_DAYS) };
+    } else if (state.stats && state.stats.currentDay !== null) {
         model.phaseKey = phaseOfDay(state.stats);
     } else if (state.stats && state.stats.mostRecentPaused) {
         model.phaseKey = 'paused';
     }
 
-    renderHero(heroStatus(state.stats), model, state.stats);
+    renderHero(heroStatus(state.stats, state.pregnancy), model, statsForHero);
     renderMenu();
 
     const dateInput = $('#logDate');
@@ -353,9 +392,14 @@ function logPeriod(dateStr) {
         toast('already logged');
         return;
     }
+    const wasPregnant = !!state.pregnancy;
+    if (wasPregnant) {
+        addPregHistory({ since: state.pregnancy.since, until: todayISO() });
+        savePregnancy(null);
+    }
     state.periods.push({ date: dateStr, paused: false });
     savePeriods(state.periods);
-    toast('period logged');
+    toast(wasPregnant ? 'pregnancy ended' : 'period logged');
     closeSheets();
 }
 
@@ -369,19 +413,26 @@ function updatePeriod(oldDate, newDate) {
     return true;
 }
 
-function togglePause(dateStr) {
-    const updated = state.periods.map((p) => ({
-        ...p,
-        paused: p.date === dateStr ? !p.paused : p.paused
-    }));
-    savePeriods(updated);
-    const now = getPeriods().find((p) => p.date === dateStr);
-    toast(now && now.paused ? 'held' : 'resumed');
-}
-
 function deletePeriod(dateStr) {
     savePeriods(state.periods.filter((p) => p.date !== dateStr));
     toast('deleted');
+}
+
+function startPregnancy() {
+    const all = state.periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
+    const since = all.length ? all[0].date : todayISO();
+    savePregnancy({ since });
+    load();
+    closeSheets();
+    toast('due ' + fmtShort(toLocalISO(addDays(parseLocalDate(since), GESTATION_DAYS))));
+}
+
+function endPregnancy() {
+    if (state.pregnancy) addPregHistory({ since: state.pregnancy.since, until: todayISO() });
+    savePregnancy(null);
+    load();
+    closeSheets();
+    toast('pregnancy ended');
 }
 
 function exportCSV() {
@@ -430,7 +481,7 @@ function importCSV(file) {
                     errors.push(i + 1);
                     continue;
                 }
-                imported.push({ date, paused: vals[pi]?.trim().toLowerCase() === 'yes' });
+                imported.push({ date, paused: false });
             }
 
             if (!imported.length) {
@@ -548,15 +599,15 @@ function init() {
             deletePeriod(del.dataset.delete);
             return;
         }
-        const pause = e.target.closest('[data-toggle-pause]');
-        if (pause) {
-            togglePause(pause.dataset.togglePause);
-            return;
-        }
         const edit = e.target.closest('[data-edit]');
         if (edit) {
             openLogSheet(edit.dataset.edit);
         }
+    });
+
+    $('#pregnancyBtn').addEventListener('click', () => {
+        if (state.pregnancy) endPregnancy();
+        else startPregnancy();
     });
 
     document.addEventListener('keydown', (e) => {
