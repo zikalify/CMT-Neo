@@ -456,6 +456,11 @@ input[type="date"]:focus {
     opacity: 0.85;
 }
 
+.hist-chip.on {
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, 0.45);
+}
+
 .mini-btn {
     display: inline-flex;
     align-items: center;
@@ -543,5 +548,10 @@ input[type="date"]:focus {
     .toast {
         background: rgba(248, 245, 252, 0.94);
         border-color: var(--line);
+    }
+
+    .hist-chip.on {
+        color: #16a34a;
+        border-color: rgba(22, 163, 74, 0.4);
     }
 }

@@ -9,12 +9,10 @@ const PALETTES = {
 };
 
 const GESTATION_DAYS = 280;
-const PREG_KEY = 'cmt.neo.pregnancy.v1';
 
 const state = {
     periods: [],
     stats: null,
-    pregnancy: null,
     editingDate: null
 };
 
@@ -28,27 +26,6 @@ function savePeriods(periods) {
     const sorted = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
     localStorage.setItem(STORE_KEY, JSON.stringify(sorted));
     load();
-}
-
-function getPregnancy() {
-    try { return JSON.parse(localStorage.getItem(PREG_KEY)); } catch { return null; }
-}
-
-function savePregnancy(preg) {
-    if (preg) localStorage.setItem(PREG_KEY, JSON.stringify(preg));
-    else localStorage.removeItem(PREG_KEY);
-}
-
-const PREG_HIST_KEY = 'cmt.neo.pregnancy.history.v1';
-
-function getPregHistory() {
-    try { return JSON.parse(localStorage.getItem(PREG_HIST_KEY)) || []; } catch { return []; }
-}
-
-function addPregHistory(win) {
-    const h = getPregHistory();
-    h.push(win);
-    localStorage.setItem(PREG_HIST_KEY, JSON.stringify(h));
 }
 
 function parseLocalDate(str) {
@@ -101,14 +78,13 @@ function mix(hexA, hexB, t) {
     return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
-function computeStats(periods, pregWindows) {
-    const windows = pregWindows || [];
-    const crossesPregnancy = (aISO, bISO) => windows.some((w) => aISO < w.until && bISO > w.since);
-    const valid = periods.filter((p) => !p.paused).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
+function computeStats(periods) {
+    const valid = periods.filter((p) => !p.paused && !p.pregnant).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
     const allDesc = periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
     const mostRecent = allDesc[0];
     if (!mostRecent) return null;
+    const pregSinceISO = mostRecent.pregnant ? mostRecent.date : null;
 
     if (valid.length === 1) {
         const ref = valid[0];
@@ -116,7 +92,7 @@ function computeStats(periods, pregWindows) {
         const peakStart = 10;
         const peakEnd = 17;
         let currentDay = null;
-        if (!mostRecent.paused) {
+        if (!mostRecent.paused && !mostRecent.pregnant) {
             currentDay = diffDays(ref.date, todayISO()) + 1;
         }
         const nextPeriod = addDays(parseLocalDate(ref.date), median);
@@ -131,6 +107,7 @@ function computeStats(periods, pregWindows) {
             peakEnd,
             currentDay,
             mostRecentPaused: mostRecent.paused,
+            pregSinceISO,
             lastDateISO: ref.date,
             nextPeriodISO: toLocalISO(nextPeriod),
             testDateISO: toLocalISO(testDate)
@@ -149,6 +126,7 @@ function computeStats(periods, pregWindows) {
                 peakEnd: 17,
                 currentDay: null,
                 mostRecentPaused: true,
+                pregSinceISO,
                 lastDateISO: mostRecent.date,
                 nextPeriodISO: mostRecent.date,
                 testDateISO: mostRecent.date
@@ -162,11 +140,11 @@ function computeStats(periods, pregWindows) {
     let lastValid = null;
 
     for (const p of all) {
-        if (p.paused) {
-            if (lastValid && !crossesPregnancy(lastValid.date, p.date)) cycleLengths.push(diffDays(lastValid.date, p.date));
+        if (p.paused || p.pregnant) {
+            if (lastValid) cycleLengths.push(diffDays(lastValid.date, p.date));
             lastValid = null;
         } else {
-            if (lastValid && !crossesPregnancy(lastValid.date, p.date)) cycleLengths.push(diffDays(lastValid.date, p.date));
+            if (lastValid) cycleLengths.push(diffDays(lastValid.date, p.date));
             lastValid = p;
         }
     }
@@ -209,7 +187,7 @@ function computeStats(periods, pregWindows) {
     const peakEnd = Math.min(fertileEnd, Math.round((median - 11) + 0.3 * mad));
 
     let currentDay = null;
-    if (!mostRecent.paused) {
+    if (!mostRecent.paused && !mostRecent.pregnant) {
         currentDay = diffDays(mostRecent.date, todayISO()) + 1;
     }
 
@@ -226,6 +204,7 @@ function computeStats(periods, pregWindows) {
         peakEnd,
         currentDay,
         mostRecentPaused: mostRecent.paused,
+        pregSinceISO,
         lastDateISO: mostRecent.date,
         nextPeriodISO: toLocalISO(nextPeriod),
         testDateISO: toLocalISO(testDate)
@@ -244,9 +223,9 @@ function phasePalette(key) {
     return PALETTES[key] || PALETTES.empty;
 }
 
-function heroStatus(stats, preg) {
-    if (preg) {
-        const dueISO = toLocalISO(addDays(parseLocalDate(preg.since), GESTATION_DAYS));
+function heroStatus(stats) {
+    if (stats && stats.pregSinceISO) {
+        const dueISO = toLocalISO(addDays(parseLocalDate(stats.pregSinceISO), GESTATION_DAYS));
         const left = diffDays(todayISO(), dueISO);
         if (left > 1) return { badge: 'pregnant', big: String(left), label: 'days to due date', tiny: '' };
         if (left === 1) return { badge: 'pregnant', big: '1', label: 'day to due date', tiny: '' };
@@ -336,14 +315,12 @@ function renderMenu() {
         list.innerHTML = sorted.map((p) => (
             '<div class="hist-item">' +
                 '<div class="hist-date">' + fmtShort(p.date) + '<small>' + parseLocalDate(p.date).getFullYear() + '</small></div>' +
+                '<button class="hist-chip' + (p.pregnant ? ' on' : '') + '" data-preg="' + p.date + '">' + (p.pregnant ? 'pregnant' : 'got pregnant') + '</button>' +
                 '<button class="mini-btn" data-edit="' + p.date + '" aria-label="edit">' + editIcon() + '</button>' +
                 '<button class="mini-btn danger" data-delete="' + p.date + '" aria-label="delete">' + trashIcon() + '</button>' +
             '</div>'
         )).join('');
     }
-
-    const pregBtn = $('#pregnancyBtn');
-    if (pregBtn) pregBtn.textContent = state.pregnancy ? 'end pregnancy' : 'got pregnant';
 }
 
 function editIcon() {
@@ -357,18 +334,17 @@ function trashIcon() {
 function load() {
     state.periods = getPeriods();
     if (state.periods.some((p) => p.paused)) {
-        state.periods = state.periods.map((p) => ({ date: p.date, paused: false }));
+        state.periods = state.periods.map((p) => ({ date: p.date, paused: false, pregnant: !!p.pregnant }));
         localStorage.setItem(STORE_KEY, JSON.stringify(state.periods));
     }
-    state.pregnancy = getPregnancy();
-    state.stats = computeStats(state.periods, getPregHistory());
+    state.stats = computeStats(state.periods);
 
     const model = { total: state.stats ? state.stats.median : null, phaseKey: 'empty' };
     let statsForHero = state.stats;
-    if (state.pregnancy) {
+    if (state.stats && state.stats.pregSinceISO) {
         model.phaseKey = 'pregnant';
         model.total = GESTATION_DAYS;
-        const elapsed = Math.max(0, diffDays(state.pregnancy.since, todayISO()));
+        const elapsed = Math.max(0, diffDays(state.stats.pregSinceISO, todayISO()));
         statsForHero = { currentDay: Math.min(elapsed, GESTATION_DAYS) };
     } else if (state.stats && state.stats.currentDay !== null) {
         model.phaseKey = phaseOfDay(state.stats);
@@ -376,7 +352,7 @@ function load() {
         model.phaseKey = 'paused';
     }
 
-    renderHero(heroStatus(state.stats, state.pregnancy), model, statsForHero);
+    renderHero(heroStatus(state.stats), model, statsForHero);
     renderMenu();
 
     const dateInput = $('#logDate');
@@ -392,14 +368,9 @@ function logPeriod(dateStr) {
         toast('already logged');
         return;
     }
-    const wasPregnant = !!state.pregnancy;
-    if (wasPregnant) {
-        addPregHistory({ since: state.pregnancy.since, until: todayISO() });
-        savePregnancy(null);
-    }
-    state.periods.push({ date: dateStr, paused: false });
+    state.periods.push({ date: dateStr, paused: false, pregnant: false });
     savePeriods(state.periods);
-    toast(wasPregnant ? 'pregnancy ended' : 'period logged');
+    toast('period logged');
     closeSheets();
 }
 
@@ -418,21 +389,12 @@ function deletePeriod(dateStr) {
     toast('deleted');
 }
 
-function startPregnancy() {
-    const all = state.periods.slice().sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
-    const since = all.length ? all[0].date : todayISO();
-    savePregnancy({ since });
-    load();
-    closeSheets();
-    toast('due ' + fmtShort(toLocalISO(addDays(parseLocalDate(since), GESTATION_DAYS))));
-}
-
-function endPregnancy() {
-    if (state.pregnancy) addPregHistory({ since: state.pregnancy.since, until: todayISO() });
-    savePregnancy(null);
-    load();
-    closeSheets();
-    toast('pregnancy ended');
+function togglePregnant(dateStr) {
+    const entry = state.periods.find((p) => p.date === dateStr);
+    const on = entry && !entry.pregnant;
+    savePeriods(state.periods.map((p) => (p.date === dateStr ? { ...p, pregnant: !p.pregnant } : p)));
+    if (on) toast('due ' + fmtShort(toLocalISO(addDays(parseLocalDate(dateStr), GESTATION_DAYS))));
+    else toast('unmarked');
 }
 
 function exportCSV() {
@@ -481,7 +443,7 @@ function importCSV(file) {
                     errors.push(i + 1);
                     continue;
                 }
-                imported.push({ date, paused: false });
+                imported.push({ date, paused: false, pregnant: false });
             }
 
             if (!imported.length) {
@@ -599,15 +561,15 @@ function init() {
             deletePeriod(del.dataset.delete);
             return;
         }
+        const preg = e.target.closest('[data-preg]');
+        if (preg) {
+            togglePregnant(preg.dataset.preg);
+            return;
+        }
         const edit = e.target.closest('[data-edit]');
         if (edit) {
             openLogSheet(edit.dataset.edit);
         }
-    });
-
-    $('#pregnancyBtn').addEventListener('click', () => {
-        if (state.pregnancy) endPregnancy();
-        else startPregnancy();
     });
 
     document.addEventListener('keydown', (e) => {
