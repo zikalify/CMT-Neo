@@ -2,7 +2,7 @@ const STORE_KEY = 'cmt.neo.periods.v1';
 
 const PALETTES = {
     follicular: { name: 'Follicular', bg: '#120b06', bg2: '#2a1608', a: '#ff9f43', b: '#ffd166', glow: 'rgba(255,159,67,0.4)' },
-    fertile: { name: 'Ovulation', bg: '#160819', bg2: '#340f40', a: '#ff3fa4', b: '#a855f7', glow: 'rgba(255,63,164,0.45)' },
+    fertile: { name: 'Ovulation window', bg: '#160819', bg2: '#340f40', a: '#ff3fa4', b: '#a855f7', glow: 'rgba(255,63,164,0.45)' },
     luteal: { name: 'Luteal', bg: '#07101a', bg2: '#0d2a48', a: '#38c6ff', b: '#7c6bff', glow: 'rgba(56,198,255,0.38)' },
     pregnant: { name: 'Pregnant', bg: '#0a140f', bg2: '#0e2f22', a: '#4ade80', b: '#22d3ee', glow: 'rgba(74,222,128,0.4)' },
     empty: { name: 'Getting started', bg: '#0c0814', bg2: '#1d1030', a: '#b78dff', b: '#ff7ac2', glow: 'rgba(183,141,255,0.42)' }
@@ -269,7 +269,7 @@ function heroStatus(stats) {
     }
     if (d <= stats.peakEnd) {
         const left = stats.peakEnd - d + 1;
-        return { badge: 'ovulation', big: String(left), label: left === 1 ? 'fertile day left' : 'fertile days left', tiny: '' };
+        return { badge: 'ovulation window', big: String(left), label: left === 1 ? 'fertile day left' : 'fertile days left', tiny: '' };
     }
     if (untilPeriod < 0) {
         return { badge: 'luteal', big: '!', label: 'overdue', tiny: testMsg };
@@ -306,7 +306,7 @@ function syncThemeColor() {
     }
 }
 
-if (window.matchMedia) {
+if (typeof window !== 'undefined' && window.matchMedia) {
     const mq = window.matchMedia('(prefers-color-scheme: light)');
     mq.addEventListener?.('change', syncThemeColor);
 }
@@ -414,15 +414,62 @@ function togglePregnant(dateStr) {
     else toast('unmarked');
 }
 
+function buildCSVContent(periods) {
+    let csv = 'Date,Paused,Pregnant\n';
+    periods.slice().sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date)).forEach((p) => {
+        csv += p.date + ',' + (p.paused ? 'Yes' : 'No') + ',' + (p.pregnant ? 'Yes' : 'No') + '\n';
+    });
+    return csv;
+}
+
+function parseCSVText(text) {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) throw new Error('file is empty');
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    if (!headers.includes('date') || !headers.includes('paused')) {
+        throw new Error('need Date,Paused');
+    }
+    const di = headers.indexOf('date');
+    const pi = headers.indexOf('paused');
+    const gi = headers.indexOf('pregnant');
+    const imported = [];
+    const errors = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const vals = lines[i].split(',');
+        const raw = vals[di]?.trim();
+        if (!raw) continue;
+        const date = normalizeDate(raw);
+        if (!date) {
+            errors.push(i + 1);
+            continue;
+        }
+        const gval = gi >= 0 ? (vals[gi] || '').trim().toLowerCase() : '';
+        const pval = (vals[pi] || '').trim().toLowerCase();
+        const isYes = (v) => v === 'yes' || v === 'true' || v === '1';
+        const pregnant = isYes(gval) || isYes(pval);
+        imported.push({ date, paused: false, pregnant });
+    }
+
+    return { imported, errors };
+}
+
+function mergePeriods(existing, imported) {
+    const merged = [...existing];
+    imported.forEach((imp) => {
+        const idx = merged.findIndex((p) => p.date === imp.date);
+        if (idx >= 0) merged[idx] = imp;
+        else merged.push(imp);
+    });
+    return merged;
+}
+
 function exportCSV() {
     if (!state.periods.length) {
         toast('nothing to export');
         return;
     }
-    let csv = 'Date,Paused,Pregnant\n';
-    state.periods.slice().sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date)).forEach((p) => {
-        csv += p.date + ',' + (p.paused ? 'Yes' : 'No') + ',' + (p.pregnant ? 'Yes' : 'No') + '\n';
-    });
+    const csv = buildCSVContent(state.periods);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -440,47 +487,14 @@ function importCSV(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const lines = e.target.result.split('\n').map((l) => l.trim()).filter(Boolean);
-            if (!lines.length) throw new Error('file is empty');
-            const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-            if (!headers.includes('date') || !headers.includes('paused')) {
-                throw new Error('need Date,Paused');
-            }
-            const di = headers.indexOf('date');
-            const pi = headers.indexOf('paused');
-            const gi = headers.indexOf('pregnant');
-            const imported = [];
-            const errors = [];
-
-            for (let i = 1; i < lines.length; i++) {
-                const vals = lines[i].split(',');
-                const raw = vals[di]?.trim();
-                if (!raw) continue;
-                const date = normalizeDate(raw);
-                if (!date) {
-                    errors.push(i + 1);
-                    continue;
-                }
-                const gval = gi >= 0 ? (vals[gi] || '').trim().toLowerCase() : '';
-                const pval = (vals[pi] || '').trim().toLowerCase();
-                const isYes = (v) => v === 'yes' || v === 'true' || v === '1';
-                const pregnant = isYes(gval) || isYes(pval);
-                imported.push({ date, paused: false, pregnant });
-            }
+            const { imported, errors } = parseCSVText(e.target.result);
 
             if (!imported.length) {
                 toast(errors.length ? 'could not parse dates' : 'no records found');
                 return;
             }
 
-            const merged = [...state.periods];
-            imported.forEach((imp) => {
-                const idx = merged.findIndex((p) => p.date === imp.date);
-                if (idx >= 0) merged[idx] = imp;
-                else merged.push(imp);
-            });
-
-            savePeriods(merged);
+            savePeriods(mergePeriods(state.periods, imported));
             toast(errors.length ? 'imported, skipped ' + errors.length : 'imported');
         } catch (err) {
             toast(err.message);
@@ -544,11 +558,13 @@ function closeSheets(silent) {
     }
 }
 
-window.addEventListener('popstate', () => {
-    sheetPushed = false;
-    clearSheetInline();
-    document.querySelectorAll('.sheet').forEach((s) => s.classList.remove('open'));
-});
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('popstate', () => {
+        sheetPushed = false;
+        clearSheetInline();
+        document.querySelectorAll('.sheet').forEach((s) => s.classList.remove('open'));
+    });
+}
 
 let confirmAction = null;
 
@@ -700,14 +716,48 @@ function init() {
     load();
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 }
 
-if ('serviceWorker' in navigator) {
+if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
     });
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        PALETTES,
+        GESTATION_DAYS,
+        STORE_KEY,
+        state,
+        parseLocalDate,
+        toLocalISO,
+        addDays,
+        diffDays,
+        todayISO,
+        fmtShort,
+        hexToRgb,
+        mix,
+        computeStats,
+        phaseOfDay,
+        phasePalette,
+        heroStatus,
+        normalizeDate,
+        getPeriods,
+        savePeriods,
+        logPeriod,
+        updatePeriod,
+        deletePeriod,
+        togglePregnant,
+        buildCSVContent,
+        parseCSVText,
+        mergePeriods,
+        load
+    };
 }
