@@ -158,7 +158,9 @@ function computeStats(periods) {
 
     for (const p of all) {
         if (p.paused || p.pregnant) {
-            if (lastValid) cycleLengths.push(diffDays(lastValid.date, p.date));
+            // Interrupted gap (missed logs, anovulatory spell, conception,
+            // postpartum return): not a completed ovulatory cycle, so break
+            // the chain instead of counting the long gap as one cycle.
             lastValid = null;
         } else {
             if (lastValid) cycleLengths.push(diffDays(lastValid.date, p.date));
@@ -168,7 +170,15 @@ function computeStats(periods) {
 
     if (cycleLengths.length < 1) return null;
 
-    const recent = cycleLengths.slice(-12);
+    const NORMAL_MIN = 20;
+    const NORMAL_MAX = 45;
+    const normalLengths = cycleLengths.filter((c) => c >= NORMAL_MIN && c <= NORMAL_MAX);
+    const useRobust = normalLengths.length >= 2;
+    const usableLengths = useRobust ? normalLengths : cycleLengths;
+
+    if (usableLengths.length < 1) return null;
+
+    const recent = usableLengths.slice(-12);
     const range = Math.max(...recent) - Math.min(...recent);
     const stable = range <= 9;
     const recent6 = recent.slice(-6);
@@ -177,7 +187,15 @@ function computeStats(periods) {
 
     let median;
     let sample;
-    if (!stable) {
+    if (useRobust) {
+        // Plausible subset: plain robust median. The legacy 2x recency
+        // weighting overreacts after long-gap spells (e.g. median jumps to
+        // 41 on [..,45,41] when the stable centre is ~35).
+        const s = recent.slice().sort((a, b) => a - b);
+        const mid = Math.floor(s.length / 2);
+        median = s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+        sample = recent;
+    } else if (!stable) {
         const weighted = [];
         recent6.forEach((c, i) => {
             const w = i >= recent6.length - 3 ? 2 : 1;
