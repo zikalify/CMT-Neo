@@ -78,6 +78,140 @@ function mix(hexA, hexB, t) {
     return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Ovulation-day estimate from period dates only (experimental, not validated
+// against ovulation ground truth). Assumptions: cycle length = ovulation day +
+// luteal phase; luteal phase ~ discrete normal(13, 1.8) truncated to 6..20 days;
+// ovulation-day spread = past cycle-length spread minus luteal spread (floored),
+// recency-weighted (half-life 6 cycles) with one pseudo-cycle (mean 29, sd 4.5).
+// ---------------------------------------------------------------------------
+const OV_MODEL = {
+    lutealMean: 13,
+    lutealSd: 1.8,
+    priorMean: 29,
+    priorSd: 4.5,
+    priorWeight: 1,
+    halfLife: 6,
+    minOvSd: 1.5,
+    maxDay: 70
+};
+const OV_FLAT = 0.2;
+const OV_GAP = 0.06;
+const OV_SPAN = 0.15;
+
+function normalPdf(x, m, s) {
+    return Math.exp(-0.5 * Math.pow((x - m) / s, 2)) / (s * Math.sqrt(2 * Math.PI));
+}
+
+function lutealPmf() {
+    const pmf = {};
+    let z = 0;
+    for (let l = 6; l <= 20; l++) {
+        pmf[l] = normalPdf(l, OV_MODEL.lutealMean, OV_MODEL.lutealSd);
+        z += pmf[l];
+    }
+    for (const l in pmf) pmf[l] /= z;
+    return pmf;
+}
+
+// lengths: completed cycle lengths, oldest to newest.
+function ovulationPmf(lengths) {
+    const o = OV_MODEL;
+    const n = lengths.length;
+    const w = lengths.map((_, i) => Math.pow(0.5, (n - 1 - i) / o.halfLife));
+    const sw = w.reduce((a, b) => a + b, 0);
+    const neff = n ? (sw * sw) / w.reduce((a, b) => a + b * b, 0) : 0;
+    const m = n ? lengths.reduce((a, c, i) => a + w[i] * c, 0) / sw : o.priorMean;
+    let s2 = n >= 2
+        ? (lengths.reduce((a, c, i) => a + w[i] * Math.pow(c - m, 2), 0) / sw) * (neff / Math.max(neff - 1, 1))
+        : o.priorSd * o.priorSd;
+    s2 = (neff * s2 + o.priorWeight * o.priorSd * o.priorSd) / (neff + o.priorWeight);
+    const varO = Math.max(s2 - o.lutealSd * o.lutealSd, o.minOvSd * o.minOvSd);
+    const sorted = lengths.slice().sort((a, b) => a - b);
+    const q = (p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0);
+    const iqrSd = sorted.length >= 4 ? (q(0.75) - q(0.25)) / 1.34 : Math.sqrt(s2);
+    const spread = Math.max(Math.min(Math.sqrt(s2), iqrSd || Math.sqrt(s2)), 1);
+    const h = Math.min(3, Math.max(1.0, 0.9 * spread * Math.pow(Math.max(neff + o.priorWeight, 1), -0.2) * 0.6));
+    const r = s2 > 0 ? Math.sqrt(Math.max(varO - h * h, 0) / s2) : 0;
+    const comps = lengths.map((c, i) => ({ w: w[i], mu: m + r * (c - m) - o.lutealMean, sd: h }));
+    comps.push({
+        w: o.priorWeight,
+        mu: o.priorMean - o.lutealMean,
+        sd: Math.sqrt(Math.max(o.priorSd * o.priorSd - o.lutealSd * o.lutealSd, o.minOvSd * o.minOvSd))
+    });
+    const zw = comps.reduce((a, c) => a + c.w, 0);
+    const pO = new Array(o.maxDay + 1).fill(0);
+    let z = 0;
+    for (let k = 1; k <= o.maxDay; k++) {
+        pO[k] = comps.reduce((a, c) => a + (c.w / zw) * normalPdf(k, c.mu, c.sd), 0);
+        z += pO[k];
+    }
+    for (let k = 1; k <= o.maxDay; k++) pO[k] /= z;
+    return pO;
+}
+
+// P(ovulation on day k | period has not started by cycle day d), per day k.
+function conditionalOvulation(lengths, d) {
+    const pO = ovulationPmf(lengths);
+    const L = lutealPmf();
+    const survive = (x) => {
+        let s = 0;
+        for (const l in L) if (+l >= x) s += L[l];
+        return s;
+    };
+    const p = new Array(OV_MODEL.maxDay + 1).fill(0);
+    let z = 0;
+    for (let k = 1; k <= OV_MODEL.maxDay; k++) {
+        p[k] = pO[k] * survive(d - k);
+        z += p[k];
+    }
+    if (z < 1e-9) return null;
+    for (let k = 1; k <= OV_MODEL.maxDay; k++) p[k] /= z;
+    return p;
+}
+
+// Low / medium / high for every day in [ws, we], relative to the highest and lowest
+// estimate inside that window (thirds of the range). Near-equal estimates share a
+// label, and a nearly flat window is all medium. No quotas or caps.
+function relativeOvulationLabels(p, ws, we) {
+    const days = [];
+    for (let k = ws; k <= we; k++) days.push({ day: k, p: p[k] || 0, label: 'medium' });
+    if (!days.length) return days;
+    const vs = days.map((x) => x.p);
+    const hi = Math.max(...vs);
+    const lo = Math.min(...vs);
+    const range = hi - lo;
+    if (hi <= 0 || range < OV_FLAT * hi) return days;
+    const order = vs.map((_, i) => i).sort((i, j) => vs[j] - vs[i]);
+    const groups = [];
+    order.forEach((i) => {
+        const g = groups[groups.length - 1];
+        if (g && g.last - vs[i] < OV_GAP * range && g.first - vs[i] < OV_SPAN * range) {
+            g.idx.push(i);
+            g.last = vs[i];
+        } else {
+            groups.push({ first: vs[i], last: vs[i], idx: [i] });
+        }
+    });
+    groups.forEach((g) => {
+        const mean = g.idx.reduce((a, i) => a + vs[i], 0) / g.idx.length;
+        const t = (mean - lo) / range;
+        const label = t >= 2 / 3 ? 'high' : t < 1 / 3 ? 'low' : 'medium';
+        g.idx.forEach((i) => { days[i].label = label; });
+    });
+    return days;
+}
+
+// Today's label, only inside the displayed window; '' when it cannot be computed.
+function ovulationTodayLabel(stats) {
+    if (!stats || !stats.modelLengths || stats.currentDay === null) return '';
+    if (stats.currentDay < stats.peakStart || stats.currentDay > stats.peakEnd) return '';
+    const p = conditionalOvulation(stats.modelLengths, stats.currentDay);
+    if (!p) return '';
+    const today = relativeOvulationLabels(p, stats.peakStart, stats.peakEnd).find((x) => x.day === stats.currentDay);
+    return today ? today.label + ' chance today' : '';
+}
+
 function computeStats(periods) {
     const valid = periods.filter((p) => !p.paused && !p.pregnant).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
@@ -242,7 +376,8 @@ function computeStats(periods) {
         pregSinceISO,
         lastDateISO: mostRecent.date,
         nextPeriodISO: toLocalISO(nextPeriod),
-        testDateISO: toLocalISO(testDate)
+        testDateISO: toLocalISO(testDate),
+        modelLengths: cycleLengths.filter((c) => c >= 18 && c <= 60).slice(-12)
     };
 }
 
@@ -287,7 +422,7 @@ function heroStatus(stats) {
     }
     if (d <= stats.peakEnd) {
         const left = stats.peakEnd - d + 1;
-        return { badge: 'ovulation window', big: String(left), label: left === 1 ? 'fertile day left' : 'fertile days left', tiny: '' };
+        return { badge: 'ovulation window', big: String(left), label: left === 1 ? 'fertile day left' : 'fertile days left', tiny: ovulationTodayLabel(stats) };
     }
     if (untilPeriod < 0) {
         return { badge: 'luteal', big: '!', label: 'overdue', tiny: testMsg };
@@ -763,6 +898,9 @@ if (typeof module !== 'undefined' && module.exports) {
         hexToRgb,
         mix,
         computeStats,
+        conditionalOvulation,
+        relativeOvulationLabels,
+        ovulationTodayLabel,
         phaseOfDay,
         phasePalette,
         heroStatus,
