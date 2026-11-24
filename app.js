@@ -209,7 +209,7 @@ function ovulationTodayLabel(stats) {
     const p = conditionalOvulation(stats.modelLengths, stats.currentDay);
     if (!p) return '';
     const today = relativeOvulationLabels(p, stats.peakStart, stats.peakEnd).find((x) => x.day === stats.currentDay);
-    return today ? today.label + ' chance today' : '';
+    return today ? today.label + ' chance of ovulation today' : '';
 }
 
 function computeStats(periods) {
